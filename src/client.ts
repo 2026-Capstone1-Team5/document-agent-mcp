@@ -39,6 +39,25 @@ export interface DocumentListResponse {
   offset: number;
 }
 
+export interface ParseJob {
+  id: string;
+  filename: string;
+  contentType: string;
+  parserBackend: string;
+  status: "queued" | "processing" | "succeeded" | "failed";
+  documentId: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface ParseJobResponse {
+  job: ParseJob;
+}
+
 // ── 공통 에러 핸들러 ──────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
@@ -77,10 +96,14 @@ function defaultHeaders(): Record<string, string> {
 
 // ── API 함수 ──────────────────────────────────────────────────────────────────
 
+const POLL_INTERVAL_MS = 2_000;
+const POLL_MAX_ATTEMPTS = 90; // 최대 3분 대기
+
 export async function uploadDocument(
   fileBuffer: Buffer,
   filename: string,
 ): Promise<DocumentParseResponse> {
+  // ── 1. 업로드 → 파싱 잡 생성 (202) ────────────────────────────────────────
   const formData = new FormData();
   formData.append(
     "file",
@@ -88,15 +111,34 @@ export async function uploadDocument(
     filename,
   );
 
-  const res = await fetch(`${BASE_URL}/api/v1/documents`, {
+  const uploadRes = await fetch(`${BASE_URL}/api/v1/documents`, {
     method: "POST",
     headers: defaultHeaders(),
     body: formData,
-    // PDF 파싱은 수십 초가 걸릴 수 있으므로 타임아웃을 충분히 설정
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(30_000),
   });
 
-  return handleResponse<DocumentParseResponse>(res);
+  const { job } = await handleResponse<ParseJobResponse>(uploadRes);
+
+  // ── 2. 파싱 완료까지 폴링 ──────────────────────────────────────────────────
+  for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+    const pollRes = await fetch(`${BASE_URL}/api/v1/parse-jobs/${job.id}`, {
+      headers: defaultHeaders(),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const { job: updated } = await handleResponse<ParseJobResponse>(pollRes);
+
+    if (updated.status === "succeeded" && updated.documentId) {
+      return getDocumentResult(updated.documentId);
+    }
+    if (updated.status === "failed") {
+      throw new ApiError(500, updated.errorMessage ?? "파싱 실패");
+    }
+  }
+
+  throw new ApiError(500, "파싱 타임아웃: 결과를 get_document_result로 나중에 조회하세요.");
 }
 
 export async function listDocuments(params: {
