@@ -264,13 +264,6 @@ function configureCodex(apiKey: string, backendUrl: string, target: string): boo
     ...(commandConfig.args ?? []),
   ];
 
-  const removeExisting = spawnSync(
-    "codex",
-    ["mcp", "remove", "docmate"],
-    { stdio: "ignore", shell: process.platform === "win32" },
-  );
-  void removeExisting;
-
   const result = spawnSync(
     "codex",
     args,
