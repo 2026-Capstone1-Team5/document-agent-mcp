@@ -178,3 +178,23 @@ cp .env.example .env
 DOCMATE_API_KEY=<YOUR_API_KEY>
 DOCUMENT_AGENT_API_BASE_URL=http://127.0.0.1:8000
 ```
+
+---
+
+## npm Release
+
+GitHub Actions is configured to:
+
+- run `pnpm build` and `npm pack` on PRs and pushes
+- publish to npm on `v*` tag pushes or manual workflow dispatch
+
+Repository secret required:
+
+- `NPM_TOKEN`
+
+Tag-based release example:
+
+```bash
+git tag v0.1.6
+git push origin v0.1.6
+```
