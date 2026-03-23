@@ -72,7 +72,7 @@ document-agent-mcp setup --help
 |-------|-------------|------------|
 | Claude Code | `~/.claude/skills/` | registered via `claude mcp add --scope user` |
 | Gemini CLI | `~/.gemini/skills/` | `~/.gemini/.mcp.json` |
-| OpenAI Codex | `~/.codex/skills/` | registered via `codex mcp add` |
+| OpenAI Codex | `~/.codex/skills/` | registered via `codex mcp add` or `~/.codex/config.toml` |
 
 Agent detection is automatic — setup checks which CLIs are available on your `PATH`.
 If none are detected, pass `--agent <name>` explicitly.

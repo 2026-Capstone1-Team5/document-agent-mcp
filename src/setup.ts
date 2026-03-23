@@ -167,6 +167,45 @@ function writeMcpJson(
   return true;
 }
 
+function writeCodexConfigToml(
+  tomlPath: string,
+  apiKey: string,
+  backendUrl: string,
+  commandConfig: McpCommandConfig,
+): boolean {
+  fs.mkdirSync(path.dirname(tomlPath), { recursive: true });
+
+  let existing = "";
+  if (fs.existsSync(tomlPath)) {
+    existing = fs.readFileSync(tomlPath, "utf8");
+  }
+
+  const stripped = existing
+    .replace(/^\[mcp_servers\.docmate\][\s\S]*?(?=^\[|\Z)/gm, "")
+    .trimEnd();
+
+  const escapedCommand = JSON.stringify(commandConfig.command);
+  const escapedArgs = JSON.stringify(commandConfig.args ?? []);
+  const escapedApiKey = JSON.stringify(apiKey);
+  const escapedBackendUrl = JSON.stringify(backendUrl);
+
+  const block = [
+    "[mcp_servers.docmate]",
+    `command = ${escapedCommand}`,
+    `args = ${escapedArgs}`,
+    "",
+    "[mcp_servers.docmate.env]",
+    `DOCMATE_API_KEY = ${escapedApiKey}`,
+    `DOCUMENT_AGENT_API_BASE_URL = ${escapedBackendUrl}`,
+    "",
+  ].join("\n");
+
+  const output = stripped ? `${stripped}\n\n${block}` : block;
+  fs.writeFileSync(tomlPath, output);
+  ok(`MCP config → ${c.bold}${tomlPath}${c.reset}`);
+  return true;
+}
+
 function configureClaude(apiKey: string, backendUrl: string, target: string): boolean {
   const commandConfig = getMcpCommandConfig();
   if (target !== HOME) {
@@ -208,8 +247,8 @@ function configureCodex(apiKey: string, backendUrl: string, target: string): boo
   const commandConfig = getMcpCommandConfig();
 
   if (target !== HOME) {
-    return writeMcpJson(
-      path.join(target, ".codex", ".mcp.json"),
+    return writeCodexConfigToml(
+      path.join(target, ".codex", "config.toml"),
       apiKey,
       backendUrl,
       commandConfig,
@@ -243,9 +282,9 @@ function configureCodex(apiKey: string, backendUrl: string, target: string): boo
     return true;
   }
 
-  warn("codex mcp add failed — falling back to ~/.codex/.mcp.json");
-  return writeMcpJson(
-    path.join(HOME, ".codex", ".mcp.json"),
+  warn("codex mcp add failed — falling back to ~/.codex/config.toml");
+  return writeCodexConfigToml(
+    path.join(HOME, ".codex", "config.toml"),
     apiKey,
     backendUrl,
     commandConfig,
