@@ -170,6 +170,11 @@ install_skills_for_agent() {
 
 # ── Configure MCP for Claude ──────────────────────────────────────────────────
 configure_mcp_claude() {
+  if [[ "$TARGET" != "$HOME" ]]; then
+    configure_mcp_json "$TARGET/.claude/.mcp.json"
+    return $?
+  fi
+
   if command -v claude &>/dev/null; then
     # Remove existing entry if present, then re-add
     claude mcp remove docmate --scope user 2>/dev/null || true

@@ -146,8 +146,16 @@ function writeMcpJson(jsonPath: string, apiKey: string, backendUrl: string): boo
   return true;
 }
 
-function configureClaude(apiKey: string, backendUrl: string) {
-  // Try `claude mcp add` first
+function configureClaude(apiKey: string, backendUrl: string, target: string): boolean {
+  if (target !== HOME) {
+    return writeMcpJson(
+      path.join(target, ".claude", ".mcp.json"),
+      apiKey,
+      backendUrl,
+    );
+  }
+
+  // Try `claude mcp add` first for the default user-scoped install.
   const r = spawnSync(
     "claude",
     [
@@ -237,7 +245,7 @@ OPTIONS:
     }
 
     if (agent === "claude") {
-      if (!configureClaude(apiKey, backendUrl)) {
+      if (!configureClaude(apiKey, backendUrl, target)) {
         failures.push(`${agent}:mcp`);
       }
     } else {

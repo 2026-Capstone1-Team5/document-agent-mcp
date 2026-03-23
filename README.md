@@ -76,6 +76,7 @@ document-agent-mcp setup --help
 
 Agent detection is automatic — setup checks which CLIs are available on your `PATH`.
 If none are detected, pass `--agent <name>` explicitly.
+When `--target <path>` is used, all skills and MCP config files are written under that directory, including Claude at `<path>/.claude/.mcp.json`.
 
 ---
 
