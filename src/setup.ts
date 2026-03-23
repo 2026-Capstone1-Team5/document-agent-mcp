@@ -8,7 +8,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as readline from "readline";
-import { execSync, spawnSync } from "child_process";
+import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -100,7 +100,7 @@ function installSkills(agent: Agent, target: string): boolean {
 }
 
 // ── MCP config helpers ────────────────────────────────────────────────────────
-function writeMcpJson(jsonPath: string, apiKey: string, backendUrl: string) {
+function writeMcpJson(jsonPath: string, apiKey: string, backendUrl: string): boolean {
   fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
 
   let config: Record<string, unknown> = {};
@@ -108,12 +108,32 @@ function writeMcpJson(jsonPath: string, apiKey: string, backendUrl: string) {
     try {
       config = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
     } catch {
-      warn(`Could not parse existing ${jsonPath}, overwriting.`);
+      err(`Could not parse existing ${jsonPath}. Refusing to overwrite it.`);
+      return false;
     }
   }
 
-  (config as Record<string, Record<string, unknown>>).mcpServers ??= {};
-  (config.mcpServers as Record<string, unknown>).docmate = {
+  if (typeof config !== "object" || config === null || Array.isArray(config)) {
+    err(`Invalid MCP config root in ${jsonPath}. Expected a JSON object.`);
+    return false;
+  }
+
+  const configWithServers = config as Record<string, unknown> & {
+    mcpServers?: Record<string, unknown>;
+  };
+
+  if (
+    configWithServers.mcpServers !== undefined &&
+    (typeof configWithServers.mcpServers !== "object" ||
+      configWithServers.mcpServers === null ||
+      Array.isArray(configWithServers.mcpServers))
+  ) {
+    err(`Invalid mcpServers field in ${jsonPath}. Expected an object.`);
+    return false;
+  }
+
+  configWithServers.mcpServers ??= {};
+  configWithServers.mcpServers.docmate = {
     command: "document-agent-mcp",
     env: {
       DOCMATE_API_KEY: apiKey,
@@ -123,6 +143,7 @@ function writeMcpJson(jsonPath: string, apiKey: string, backendUrl: string) {
 
   fs.writeFileSync(jsonPath, JSON.stringify(config, null, 2) + "\n");
   ok(`MCP config → ${c.bold}${jsonPath}${c.reset}`);
+  return true;
 }
 
 function configureClaude(apiKey: string, backendUrl: string) {
@@ -140,9 +161,10 @@ function configureClaude(apiKey: string, backendUrl: string) {
 
   if (r.status === 0) {
     ok("MCP server registered (user scope)");
+    return true;
   } else {
     warn("claude mcp add failed — falling back to ~/.claude/.mcp.json");
-    writeMcpJson(path.join(HOME, ".claude", ".mcp.json"), apiKey, backendUrl);
+    return writeMcpJson(path.join(HOME, ".claude", ".mcp.json"), apiKey, backendUrl);
   }
 }
 
@@ -206,17 +228,31 @@ OPTIONS:
 
   // ── Step 3: install ──────────────────────────────────────────────────────
   header("[3/3] Installing skills & MCP config");
+  const failures: string[] = [];
 
   for (const agent of agents) {
     console.log(`\n  ${c.blue}[${agent}]${c.reset}`);
-    installSkills(agent, target);
+    if (!installSkills(agent, target)) {
+      failures.push(`${agent}:skills`);
+    }
 
     if (agent === "claude") {
-      configureClaude(apiKey, backendUrl);
+      if (!configureClaude(apiKey, backendUrl)) {
+        failures.push(`${agent}:mcp`);
+      }
     } else {
       const jsonPath = path.join(target, `.${agent}`, ".mcp.json");
-      writeMcpJson(jsonPath, apiKey, backendUrl);
+      if (!writeMcpJson(jsonPath, apiKey, backendUrl)) {
+        failures.push(`${agent}:mcp`);
+      }
     }
+  }
+
+  if (failures.length > 0) {
+    console.log(`\n${c.yellow}${c.bold}Completed with issues.${c.reset}`);
+    console.log(`  Failed steps: ${failures.join(", ")}`);
+    process.exitCode = 1;
+    return;
   }
 
   console.log(`\n${c.green}${c.bold}Done!${c.reset} DocMate is ready.`);

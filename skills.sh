@@ -178,12 +178,15 @@ configure_mcp_claude() {
         -e DOCUMENT_AGENT_API_BASE_URL="$BACKEND_URL" \
         -- document-agent-mcp; then
       echo -e "  ${GREEN}✔${NC} MCP server registered (user scope)"
+      return 0
     else
       echo -e "  ${YELLOW}⚠ claude mcp add failed, falling back to ~/.claude/.mcp.json${NC}"
       configure_mcp_json "$HOME/.claude/.mcp.json"
+      return $?
     fi
   else
     configure_mcp_json "$HOME/.claude/.mcp.json"
+    return $?
   fi
 }
 
@@ -195,10 +198,27 @@ configure_mcp_json() {
   # Merge into existing file if present, else create fresh
   if [[ -f "$path" ]]; then
     # Use node to safely merge JSON
-    node - "$path" "$DOCMATE_API_KEY" "$BACKEND_URL" <<'JSEOF'
+    if ! node - "$path" "$DOCMATE_API_KEY" "$BACKEND_URL" <<'JSEOF'
 const fs = require('fs');
 const [,, file, apiKey, backendUrl] = process.argv;
-const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+let config;
+try {
+  config = JSON.parse(fs.readFileSync(file, 'utf8'));
+} catch {
+  console.error(`Could not parse existing ${file}. Refusing to overwrite it.`);
+  process.exit(1);
+}
+if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+  console.error(`Invalid MCP config root in ${file}. Expected a JSON object.`);
+  process.exit(1);
+}
+if (
+  config.mcpServers !== undefined &&
+  (typeof config.mcpServers !== 'object' || config.mcpServers === null || Array.isArray(config.mcpServers))
+) {
+  console.error(`Invalid mcpServers field in ${file}. Expected an object.`);
+  process.exit(1);
+}
 config.mcpServers = config.mcpServers || {};
 config.mcpServers.docmate = {
   command: 'document-agent-mcp',
@@ -206,6 +226,10 @@ config.mcpServers.docmate = {
 };
 fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
 JSEOF
+    then
+      echo -e "  ${RED}✗ Failed to update ${BOLD}$path${NC}"
+      return 1
+    fi
     echo -e "  ${GREEN}✔${NC} MCP config merged into ${BOLD}$path${NC}"
   else
     cat > "$path" <<EOF
@@ -231,15 +255,15 @@ for agent in "${AGENTS[@]}"; do
   case "$agent" in
     claude)
       install_skills_for_agent "claude" || FAILED+=("claude-skills")
-      configure_mcp_claude
+      configure_mcp_claude || FAILED+=("claude-mcp")
       ;;
     gemini)
       install_skills_for_agent "gemini" || FAILED+=("gemini-skills")
-      configure_mcp_json "$TARGET/.gemini/.mcp.json"
+      configure_mcp_json "$TARGET/.gemini/.mcp.json" || FAILED+=("gemini-mcp")
       ;;
     codex)
       install_skills_for_agent "codex" || FAILED+=("codex-skills")
-      configure_mcp_json "$TARGET/.codex/.mcp.json"
+      configure_mcp_json "$TARGET/.codex/.mcp.json" || FAILED+=("codex-mcp")
       ;;
   esac
 
@@ -249,6 +273,7 @@ done
 # ── Result ────────────────────────────────────────────────────────────────────
 if [[ ${#FAILED[@]} -gt 0 ]]; then
   echo -e "${YELLOW}Some steps failed: ${FAILED[*]}${NC}"
+  exit 1
 fi
 
 echo -e "${GREEN}${BOLD}Done!${NC} DocMate is ready."
