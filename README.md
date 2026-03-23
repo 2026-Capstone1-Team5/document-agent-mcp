@@ -8,6 +8,7 @@ Exposes three tools to AI agents:
 |------|-------------|
 | `upload_document` | Upload a local PDF and convert it to Markdown |
 | `list_documents` | List all uploaded documents |
+| `get_parse_job_status` | Check whether an async parse job is still running, succeeded, or failed |
 | `get_document_result` | Retrieve the full parsed Markdown of a document |
 
 ---
@@ -43,7 +44,7 @@ Launch your agent and run:
 /mcp
 ```
 
-You should see `docmate` listed with `upload_document`, `list_documents`, and `get_document_result`.
+You should see `docmate` listed with `upload_document`, `list_documents`, `get_parse_job_status`, and `get_document_result`.
 
 ---
 

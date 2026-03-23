@@ -13,6 +13,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 const { uploadDocumentSchema, runUploadDocument } = await import("./tools/upload.js");
 const { listDocumentsSchema, runListDocuments } = await import("./tools/list.js");
 const { getDocumentResultSchema, runGetDocumentResult } = await import("./tools/result.js");
+const { getParseJobSchema, runGetParseJob } = await import("./tools/parse-job.js");
 
 const server = new McpServer({
   name: "docmate",
@@ -38,6 +39,17 @@ server.registerTool(
     inputSchema: listDocumentsSchema,
   },
   async (args) => runListDocuments(args),
+);
+
+server.registerTool(
+  "get_parse_job_status",
+  {
+    description:
+      "Check the status of an uploaded parse job. " +
+      "Use this when upload_document reports that parsing is still in progress.",
+    inputSchema: getParseJobSchema,
+  },
+  async (args) => runGetParseJob(args),
 );
 
 server.registerTool(

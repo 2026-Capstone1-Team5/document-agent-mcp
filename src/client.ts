@@ -70,6 +70,16 @@ export class ApiError extends Error {
   }
 }
 
+export class UploadPendingError extends ApiError {
+  constructor(
+    public readonly jobId: string,
+    message = "파싱이 아직 완료되지 않았습니다.",
+  ) {
+    super(202, message);
+    this.name = "UploadPendingError";
+  }
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.ok) return res.json() as Promise<T>;
 
@@ -138,7 +148,24 @@ export async function uploadDocument(
     }
   }
 
-  throw new ApiError(500, "파싱 타임아웃: 결과를 get_document_result로 나중에 조회하세요.");
+  throw new UploadPendingError(
+    job.id,
+    "파싱이 진행 중입니다. parse job 상태를 확인한 뒤 결과를 다시 조회하세요.",
+  );
+}
+
+export async function getParseJob(
+  jobId: string,
+): Promise<ParseJobResponse> {
+  const res = await fetch(
+    `${BASE_URL}/api/v1/parse-jobs/${jobId}`,
+    {
+      headers: defaultHeaders(),
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+
+  return handleResponse<ParseJobResponse>(res);
 }
 
 export async function listDocuments(params: {
