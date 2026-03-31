@@ -71,8 +71,8 @@ function detectAgents(): Agent[] {
 // ── Path helpers ──────────────────────────────────────────────────────────────
 const HOME = process.env.HOME ?? process.env.USERPROFILE ?? "";
 
-function srcSkillsDir(agent: Agent): string {
-  return path.join(PACKAGE_ROOT, `.${agent}`, "skills");
+function srcSkillsDir(_agent: Agent): string {
+  return path.join(PACKAGE_ROOT, "skills");
 }
 
 function destSkillsDir(agent: Agent, target: string): string {
